@@ -1,5 +1,9 @@
 ---
-title: "survnet"
+title: "Survnet"
+author: "Marco del Olmo Linares"
+format: 
+  html:
+    embed-resources: true
 ---
 
 ## Quarto
