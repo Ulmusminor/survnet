@@ -14,11 +14,24 @@ t <- read_tsv("./data/brca_metabric_clinical_data.tsv")
 ## Identify and exclude all columns which are equal accross the 
 ## entire table (sex, cancer type, study id...)
 
-tc <- t |> select(where(~ n_distinct(.) > 1))
+tlog <- t |> select(where(~ n_distinct(.) > 1))
 
-# The number of variables in this base is still too big, so for proper
-# analysis we still need to do some research.
+# The number of variables in this base is still too big, we need to do research.
 
-## Some of the most important variables according to studies is the type
-## of receptor present in the cancer cell (ER Status, HER2 Status, 
-## PR Status)
+tbib <- tlog |> select(`Patient ID`, `Age at Diagnosis`, `Tumor Stage`, `Radio Therapy`,
+                  `Overall Survival (Months)`, `Overall Survival Status`) |> 
+  drop_na(-'Overall Survival Status')
+
+# A NA in Overall Survival Status can be treated as censored. But we do need to
+# have some kind of time of survival data.
+
+## Tang et al. (it's a retracted paper, but we are not evaluating the clinical
+## implications of this work) identifies Age (<60 years/>60 years), Stage and
+## HER2 status as the three variables which could have predictive value over
+## 3-year or 5-year survival. ** Put this in the Quarto **
+
+# Now we create the important variables for us.
+
+tref <- tbib |> mutate(
+  Age60 = `Age at Diagnosis` > 60
+)
