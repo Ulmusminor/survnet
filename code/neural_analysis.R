@@ -6,8 +6,7 @@
 ## data_cleaning.R and make a neural network regression model.
 ###################################################################
 
-library(keras)
-library(tensorflow)
+library(dnn)
 library(tidyverse)
 library(survival)
 library(pROC)
@@ -27,43 +26,88 @@ set.seed(2479)
 ttrain <- tprop |> slice_sample(prop = 0.8)
 ttest  <- anti_join(tprop, ttrain, by = "Patient ID")
 
-# Here keras expects numeric matrices.
+# We need to design the model for the neural network:
 
-# Training matrices - x variables and y variables.
+model = dNNmodel(units = c(4, 3, 1),
+                 activation = c("relu", "relu", "relu"),
+                 input_shape = 3)
 
-x_train <- ttrain |> mutate(
-  `Radio Therapy` = fct(`Radio Therapy`),
-  Age60 = as.numeric(Age60)
-) |> 
-  select("Radio Therapy", "Tumor Stage", "Age60") |> 
-  dummy_cols(remove_first_dummy = FALSE,
-             remove_selected_columns = TRUE) |> 
-  as.matrix() |> 
-  scale()
+# Now we can run the function deepSurv:
 
-y_train <- ttrain |> 
-  select("time", "status") |>   
-  as.matrix()
+set.seed(6700)
+m1nn <- deepSurv(formula = Surv(time, status) ~ 
+                          `Radio Therapy` + `Tumor Stage` + `Age60`,
+                 model = model,
+                 data = ttrain)
+summary(m1nn)
 
-# Testing matrices.
+###### another model with more neurons
 
-x_test <- ttest |> mutate(
-  `Radio Therapy` = fct(`Radio Therapy`),
-  Age60 = as.numeric(Age60)
-) |> 
-  select("Radio Therapy", "Tumor Stage", "Age60") |> 
-  dummy_cols(remove_first_dummy = FALSE,
-             remove_selected_columns = TRUE) |> 
-  as.matrix() |> 
-  scale()
+model2 = dNNmodel(units = c(16, 16, 1),
+                 activation = c("relu", "relu", "relu"),
+                 input_shape = 3)
 
-y_test <- ttest |> 
-  select("time", "status") |>   
-  as.matrix()
+# Now we can run the function deepSurv:
 
-# For a survival neural network in tensorflow we need to define the survival loss function.
+set.seed(6700)
+m2nn <- deepSurv(formula = Surv(time, status) ~ 
+                   `Radio Therapy` + `Tumor Stage` + `Age60`,
+                 model = model2,
+                 data = ttrain)
+summary(m2nn)
 
-surv_loss <- function(y_true, y_pred){
-  times <- y_true[, 1]
-  event <- y_true[, 2]
+######
+
+# With this we can check if we did a good adjustment.
+
+prepare_test_data <- function(df) {
+  df$Radio_Therapy_num <- ifelse(df$`Radio Therapy` == "YES", 1, 0)
+  df$Tumor_Stage_num <- as.numeric(df$`Tumor Stage`)
+  df$Age60_num <- as.numeric(df$Age60)
+  df[, c("Radio_Therapy_num", "Tumor_Stage_num", "Age60_num")] |>
+    as.matrix()
 }
+
+predict_risk <- function(model, newdata_matrix) {
+  predict(model, newdata = newdata_matrix)
+}
+
+create_binary_event <- function(df, time_point = 60, time_col = "time", status_col = "status") {
+  with(df, ifelse(get(time_col) <= time_point & get(status_col) == 1, 1, 0))
+}
+
+ttest_mat <- prepare_test_data(ttest)
+risk_scores <- predict_risk(m2nn, ttest_mat)
+actual_event <- create_binary_event(ttest, time_point = 60, time_col = "time", status_col = "status")
+
+roc_obj <- roc(response = actual_event, predictor = risk_scores$risk)
+
+ggroc(roc_obj) +
+  ggtitle("ROC Curve for DeepSurv Model at 60 Months") +
+  theme_minimal()
+
+## This shows the DeepSurv model ROC. 
+## We will try to put each one side to side now.
+
+df_cox <- data.frame(
+  specificity = rev(r1cox$specificities),
+  sensitivity = rev(r1cox$sensitivities),
+  model = "Cox Model"
+)
+
+df_dnn <- data.frame(
+  specificity = rev(roc_obj$specificities),
+  sensitivity = rev(roc_obj$sensitivities),
+  model = "DeepSurv"
+)
+
+# Combine both data frames
+df_all <- rbind(df_cox, df_dnn)
+
+# Plot with different colors for each model
+ggplot(df_all, aes(x = 1 - specificity, y = sensitivity, color = model)) +
+  geom_line(size = 1) +
+  labs(x = "False Positive Rate (1 - Specificity)", y = "True Positive Rate (Sensitivity)",
+       title = "ROC Curve Comparison") +
+  theme_bw() +
+  theme(legend.position = "bottom")

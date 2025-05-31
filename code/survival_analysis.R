@@ -26,7 +26,7 @@ ttest  <- anti_join(tprop, ttrain, by = "Patient ID")
 
 # We adjust with coxph
 
-m1cox <- tprop |> coxph(formula = Surv(time, status) ~ 
+m1cox <- ttrain |> coxph(formula = Surv(time, status) ~ 
                        `Radio Therapy` + `Tumor Stage` + `Age60`)
 summary(m1cox)
 
