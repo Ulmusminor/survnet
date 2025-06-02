@@ -44,7 +44,7 @@ summary(m1nn)
 ###### another model with more neurons
 
 model2 = dNNmodel(units = c(16, 16, 1),
-                 activation = c("relu", "relu", "relu"),
+                 activation = c("relu", "relu", "linear"),
                  input_shape = 3)
 
 # Now we can run the function deepSurv:
@@ -53,6 +53,7 @@ set.seed(6700)
 m2nn <- deepSurv(formula = Surv(time, status) ~ 
                    `Radio Therapy` + `Tumor Stage` + `Age60`,
                  model = model2,
+                 lr_rate = 5e-5,
                  data = ttrain)
 summary(m2nn)
 
@@ -60,31 +61,18 @@ summary(m2nn)
 
 # With this we can check if we did a good adjustment.
 
-prepare_test_data <- function(df) {
-  df$Radio_Therapy_num <- ifelse(df$`Radio Therapy` == "YES", 1, 0)
-  df$Tumor_Stage_num <- as.numeric(df$`Tumor Stage`)
-  df$Age60_num <- as.numeric(df$Age60)
-  df[, c("Radio_Therapy_num", "Tumor_Stage_num", "Age60_num")] |>
+prepare_test_data <- function(t) {
+  t$Radio_Therapy_num <- ifelse(t$`Radio Therapy` == "YES", 1, 0)
+  t$Tumor_Stage_num <- as.numeric(t$`Tumor Stage`)
+  t$Age60_num <- as.numeric(t$Age60)
+  t[, c("Radio_Therapy_num", "Tumor_Stage_num", "Age60_num")] |>
     as.matrix()
 }
 
-predict_risk <- function(model, newdata_matrix) {
-  predict(model, newdata = newdata_matrix)
-}
-
-create_binary_event <- function(df, time_point = 60, time_col = "time", status_col = "status") {
-  with(df, ifelse(get(time_col) <= time_point & get(status_col) == 1, 1, 0))
-}
-
 ttest_mat <- prepare_test_data(ttest)
-risk_scores <- predict_risk(m2nn, ttest_mat)
-actual_event <- create_binary_event(ttest, time_point = 60, time_col = "time", status_col = "status")
+risk_scores <- predict(m2nn, newdata = ttest_mat)
 
-roc_obj <- roc(response = actual_event, predictor = risk_scores$risk)
-
-ggroc(roc_obj) +
-  ggtitle("ROC Curve for DeepSurv Model at 60 Months") +
-  theme_minimal()
+roc_obj <- roc(response = ttest$status, predictor = risk_scores$risk |> as.numeric())
 
 ## This shows the DeepSurv model ROC. 
 ## We will try to put each one side to side now.
@@ -111,3 +99,4 @@ ggplot(df_all, aes(x = 1 - specificity, y = sensitivity, color = model)) +
        title = "ROC Curve Comparison") +
   theme_bw() +
   theme(legend.position = "bottom")
+
