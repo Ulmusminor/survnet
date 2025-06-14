@@ -9,18 +9,19 @@
 
 library(tidyverse)
 
-t <- read_tsv("./data/brca_metabric_clinical_data.tsv")
+t <- read_tsv("./data/brca_metabric_clinical_data.tsv") |> 
+  drop_na(-'Overall Survival Status')
 
 ## Identify and exclude all columns which are equal accross the 
 ## entire table (sex, cancer type, study id...)
 
-tlog <- t |> select(where(~ n_distinct(.) > 1))
+tlog <- t |> select(where(~ n_distinct(.) > 1)) 
 
 # The number of variables in this base is still too big, we need to do research.
 
 tbib <- tlog |> select(`Patient ID`, `Age at Diagnosis`, `Tumor Stage`, `Radio Therapy`,
                   `Overall Survival (Months)`, `Overall Survival Status`) |> 
-  drop_na(-'Overall Survival Status')
+  mutate(Age60 = `Age at Diagnosis` > 60)
 
 # A NA in Overall Survival Status can be treated as censored. But we do need to
 # have some kind of time of survival data.
@@ -30,8 +31,31 @@ tbib <- tlog |> select(`Patient ID`, `Age at Diagnosis`, `Tumor Stage`, `Radio T
 ## HER2 status as the three variables which could have predictive value over
 ## 3-year or 5-year survival. ** Put this in the Quarto **
 
-# Now we create the important variables for us.
+# We prepare the tibbles we are going to use in the analysis.
 
-tref <- tbib |> mutate(
-  Age60 = `Age at Diagnosis` > 60
+tprop1 <- tbib |> mutate(
+  time = ifelse(`Overall Survival (Months)` > 60, 60, `Overall Survival (Months)`),
+  status = ifelse(`Overall Survival Status` == "1:DECEASED" & `Overall Survival (Months)` < 60,
+                  1, 0),
+  truestatus = ifelse(`Overall Survival Status` == "1:DECEASED", 1, 0)
 )
+
+tprop2 <- tlog |> mutate(
+  time = ifelse(`Overall Survival (Months)` > 60, 60, `Overall Survival (Months)`),
+  status = ifelse(`Overall Survival Status` == "1:DECEASED" & `Overall Survival (Months)` < 60,
+                  1, 0),
+  truestatus = ifelse(`Overall Survival Status` == "1:DECEASED", 1, 0)
+)
+
+set.seed(2479)
+
+# I will split the data in a training and a test subset to compare the methods
+# in the test subset.
+
+ttrain_3var <- tprop1 |> slice_sample(prop = 0.8)
+ttest_3var  <- anti_join(tprop1, ttrain_3var, by = "Patient ID")
+
+# For analysis with all variables
+ttrain_nvar <- tprop2 |> slice_sample(prop = 0.8)
+ttest_nvar  <- anti_join(tprop2, ttrain_nvar, by = "Patient ID")
+

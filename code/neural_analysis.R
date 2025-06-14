@@ -11,7 +11,7 @@ library(tidyverse)
 library(survival)
 library(pROC)
 
-tprop <- tref |> mutate(
+tprop <- tbib |> mutate(
   time = ifelse(`Overall Survival (Months)` > 60, 60, `Overall Survival (Months)`),
   status = ifelse(`Overall Survival Status` == "1:DECEASED" & `Overall Survival (Months)` < 60,
                   1, 0),
@@ -94,7 +94,7 @@ df_all <- rbind(df_cox, df_dnn)
 
 # Plot with different colors for each model
 ggplot(df_all, aes(x = 1 - specificity, y = sensitivity, color = model)) +
-  geom_line(size = 1) +
+  geom_line(linewidth = 1) +
   labs(x = "False Positive Rate (1 - Specificity)", y = "True Positive Rate (Sensitivity)",
        title = "ROC Curve Comparison") +
   theme_bw() +
