@@ -13,7 +13,7 @@ This project explores whether **neural networks** — widely used in other domai
 
 ## How do I run it or explore it?
 
-For now, the project is empty, but I plan to write a Quarto that documents all my progress.
+For now, the project has no visual display of my results over time, but I plan to write a Quarto that documents all my progress in the end.
 
 Thanks to Quarto, users will be able to see the results and review the code by themselves.
 
